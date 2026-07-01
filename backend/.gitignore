@@ -1,0 +1,12 @@
+# Sensitive Data (Secrets)
+.env
+
+# Python Virtual Environment (Heavy Folder)
+venv/
+__pycache__/
+*.pyc
+
+# Local Databases (Data Privacy)
+*.db
+live_gmail_cache.json
+live_sms_cache.json
