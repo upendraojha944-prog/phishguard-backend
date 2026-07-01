@@ -7,7 +7,6 @@ python-dotenv
 SQLAlchemy
 python-jose[cryptography]
 slowapi
-easyocr
 scikit-learn
 python-multipart
 passlib
