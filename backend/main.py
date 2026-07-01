@@ -2,7 +2,7 @@ from fastapi import APIRouter, FastAPI, HTTPException, Depends, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, EmailStr
-import os, json, requests, socket, re, cv2, numpy as np, easyocr, random, bcrypt, smtplib, secrets, pickle, base64, hashlib
+import os, json, requests, socket, re, cv2, numpy as np, random, bcrypt, smtplib, secrets, pickle, base64, hashlib
 from urllib.parse import urlparse
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
@@ -1040,30 +1040,44 @@ def manual_url_scan(request: Request, payload: URLPayload, db: Session = Depends
         "analysis_summary": summary,
     }
 
-# 📸 🧬 2. Secure Multipart Form Image OCR Scanner
+# 📸 🧬 2. Secure Multipart Form Image OCR Scanner (Gemini Powered - Anti-Crash Version)
 @app.post("/api/v1/scan/screenshot-ocr")
-@limiter.limit("3/minute") # LEVEL 3: Strict limit due to high memory compute footprints
+@limiter.limit("3/minute") # Strict limit for API endpoint monitoring
 async def scan_screenshot_ocr_intel(request: Request, file: UploadFile = File(...), db: Session = Depends(get_db), current_user: dict = Depends(verify_jwt_token)):
-  try:
+    try:
+        # 1. Image ke raw bytes read karein (NumPy aur CV2 load karne ki ab koi zaroorat nahi)
         file_bytes = await file.read()
-        nparr = np.frombuffer(file_bytes, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
-        extracted_text = ""
-        if reader is not None and img is not None:
-            ocr_results = reader.readtext(img, detail=0)
-            raw_ocr_string = " ".join(ocr_results)
-            extracted_text = normalize_hindi_digits_to_english(raw_ocr_string)
-        else:
-            extracted_text = "OCR Processing Engine Core not initialized correctly."
+        # 2. Gemini Multimodal format dictionary taiyar karein
+        image_parts = [{
+            "mime_type": file.content_type,
+            "data": file_bytes
+        }]
+        
+        # 3. Gemini Flash Model initialize karke sharp text extraction prompt run karein
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        prompt = (
+            "Extract all text, visible URLs, linguistic structures, and digits precisely from this image/screenshot. "
+            "Do not add any introductory chat, commentary, or extra explanations. Just provide the raw extracted text."
+        )
+        
+        response = model.generate_content([prompt, image_parts[0]])
+        extracted_text = response.text
+        
+        # Hindi digits ko normalize karein (Aapka existing logic)
+        extracted_text = normalize_hindi_digits_to_english(extracted_text)
 
         if not extracted_text.strip():
             extracted_text = "No alphanumeric words or linguistic structures found inside this screenshot canvas."
 
+        # 4. Data Parsing (Regex, Evaluation, History, SOAR Logs) - Sab pehle ki tarah safe chalega
         detected_urls = re.findall(r'(https?://\S+|www\.\S+|\S+\.(?:com|in|net|org|edu|gov)\S*)', extracted_text)
         detected_numbers = re.findall(r'[\+\d\s\-]{10,15}', extracted_text)
         
+        # Threat assessment engine call
         threat_index, verdict, summary = evaluate_extracted_text(extracted_text)
+        
+        # Database mein scan ki history record karein
         save_scan_history(
             db=db,
             scan_type="OCR_SCAN",
@@ -1073,6 +1087,8 @@ async def scan_screenshot_ocr_intel(request: Request, file: UploadFile = File(..
             risk_score=threat_index,
             summary=extracted_text[:500],
         )
+        
+        # Incident response trigger logic
         if threat_index > 50:
             trigger_soar_incident_remediation(extracted_text, "Live OCR Image Detection Channel", db)
             
@@ -1085,7 +1101,7 @@ async def scan_screenshot_ocr_intel(request: Request, file: UploadFile = File(..
             "verdict": verdict,
             "analysis_summary": summary
         }
-  except Exception as e:
+    except Exception as e:
         raise HTTPException(status_code=500, detail=f"OCR Runtime Thread Failure: {str(e)}")
 
 # 🤖 🌐 3. Secure Adaptive AI Conversational Engine Route
