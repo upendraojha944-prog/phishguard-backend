@@ -11,3 +11,5 @@ scikit-learn
 python-multipart
 passlib
 bcrypt
+opencv-python-headless
+numpy
