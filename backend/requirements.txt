@@ -13,3 +13,4 @@ passlib
 bcrypt
 opencv-python-headless
 numpy
+email-validator
